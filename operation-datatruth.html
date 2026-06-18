@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Operation DataTruth</title>
+<style>
+  :root {
+    --bg: #0d1b2a;
+    --panel: #1a2a3a;
+    --panel2: #142032;
+    --border: #2a4060;
+    --text: #e8edf2;
+    --muted: #7a9ab8;
+    --amber: #f5a623;
+    --amber-dim: #c4821c;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --blue: #4a9edd;
+    --white: #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SPLASH ── */
+  #splash {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 1000;
+    padding: 2rem;
+    text-align: center;
+    transition: opacity 0.6s;
+  }
+  #splash.hidden { opacity: 0; pointer-events: none; }
+
+  .logo-ring {
+    width: 100px; height: 100px;
+    border: 3px solid var(--amber);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.5rem;
+    animation: pulse 2s infinite;
+    font-size: 2.5rem;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,.4); }
+    50% { box-shadow: 0 0 0 16px rgba(245,166,35,0); }
+  }
+
+  .splash-title {
+    font-family: 'Courier New', monospace;
+    font-size: clamp(1.6rem, 5vw, 2.8rem);
+    font-weight: bold;
+    color: var(--amber);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: .4rem;
+  }
+  .splash-sub {
+    color: var(--muted);
+    font-size: .95rem;
+    letter-spacing: .05em;
+    margin-bottom: 2rem;
+  }
+  .splash-desc {
+    max-width: 520px;
+    color: var(--text);
+    margin-bottom: 2rem;
+    font-size: .95rem;
+  }
+  .splash-desc strong { color: var(--amber); }
+
+  .btn {
+    background: var(--amber);
+    color: #0d1b2a;
+    border: none;
+    padding: .7rem 2rem;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    letter-spacing: .08em;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+    transition: background .2s, transform .1s;
+  }
+  .btn:hover { background: var(--amber-dim); }
+  .btn:active { transform: scale(.97); }
+  .btn.secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    margin-left: .8rem;
+  }
+  .btn.secondary:hover { color: var(--text); border-color: var(--muted); }
+  .btn.green { background: var(--green); }
+  .btn.green:hover { background: #27ae60; }
+  .btn.intro-btn { background: transparent; border: 1.5px solid var(--amber); color: var(--amber); margin-left:0; }
+  .btn.intro-btn:hover { background: rgba(245,166,35,.12); }
+  .btn.intro-btn.playing { background: rgba(245,166,35,.18); animation: introGlow .9s infinite alternate; }
+  @keyframes introGlow {
+    from { box-shadow: 0 0 0 0 rgba(245,166,35,.3); }
+    to   { box-shadow: 0 0 12px 3px rgba(245,166,35,.5); }
+  }
+
+  #intro-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 999;
+    background: rgba(8,14,22,.93);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 2rem 1rem;
+  }
+  #intro-overlay.visible { display: flex; }
+
+  #waveCanvas {
+    width: 100%;
+    max-width: 600px;
+    height: 120px;
+    margin-bottom: 1.5rem;
+    opacity: .9;
+    display: block;
+  }
+
+  #intro-transcript {
+    max-width: 520px;
+    padding: 0 1.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: .95rem;
+    color: var(--amber);
+    text-align: center;
+    line-height: 1.7;
+    min-height: 4rem;
+    letter-spacing: .03em;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  #app { display: none; min-height: 100vh; flex-direction: column; }
+  #app.visible { display: flex; }
+
+  .top-bar {
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    padding: .7rem 1.2rem;
+    display: flex; align-items: center; gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .top-bar .logo {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--amber);
+    font-size: .9rem;
+    letter-spacing: .1em;
+  }
+  .top-bar .sep { flex: 1; }
+  .progress-dots { display: flex; gap: .5rem; }
+  .dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem;
+    font-weight: bold;
+    color: var(--muted);
+    transition: all .3s;
+    cursor: default;
+  }
+  .dot.done { background: var(--green); color: #fff; }
+  .dot.active { background: var(--amber); color: #0d1b2a; }
+
+  .main-area {
+    flex: 1;
+    padding: 1.2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ── ROOM CARD ── */
+  .room { display: none; animation: fadeIn .4s ease; }
+  .room.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .dossier {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .dossier-header {
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    padding: .8rem 1.2rem;
+    display: flex; align-items: center; gap: .8rem;
+  }
+  .room-tag {
+    font-family: 'Courier New', monospace;
+    font-size: .7rem;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    padding: .15rem .5rem;
+    border-radius: 2px;
+    letter-spacing: .1em;
+  }
+  .dossier-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--white);
+  }
+  .dossier-body { padding: 1.2rem; }
+
+  .scenario-text {
+    background: var(--panel2);
+    border-left: 3px solid var(--amber);
+    padding: .9rem 1rem;
+    margin-bottom: 1rem;
+    font-size: .9rem;
+    color: var(--text);
+    border-radius: 0 4px 4px 0;
+  }
+  .scenario-text em { color: var(--amber); font-style: normal; }
+
+  /* ── INFOGRAPHIC ── */
+  .infographic {
+    border: 2px dashed var(--red);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  .infographic::before {
+    content: '⚠ MANIPULATION VERDÄCHTIG';
+    position: absolute; top: -10px; left: 12px;
+    background: var(--red);
+    color: white;
+    font-size: .65rem;
+    font-family: 'Courier New', monospace;
+    padding: .1rem .5rem;
+    letter-spacing: .08em;
+    border-radius: 2px;
+  }
+
+  canvas.chart { display: block; margin: .5rem auto; }
+
+  .claim-box {
+    background: rgba(231,76,60,.1);
+    border: 1px solid rgba(231,76,60,.3);
+    border-radius: 4px;
+    padding: .8rem 1rem;
+    margin-top: .8rem;
+    font-size: .88rem;
+  }
+  .claim-box strong { color: var(--red); }
+
+  /* ── AUFGABEN ── */
+  .aufgaben { margin-bottom: 1rem; }
+  .aufgabe {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: .8rem;
+  }
+  .aufgabe h4 {
+    font-size: .85rem;
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    letter-spacing: .05em;
+    margin-bottom: .5rem;
+  }
+  .aufgabe p { font-size: .9rem; margin-bottom: .6rem; }
+  .aufgabe ul { padding-left: 1.2rem; font-size: .88rem; margin-bottom: .6rem; }
+  .aufgabe li { margin-bottom: .2rem; }
+
+  .hint-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .8rem;
+    padding: .3rem .7rem;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-top: .4rem;
+    font-family: 'Courier New', monospace;
+  }
+  .hint-toggle:hover { color: var(--text); border-color: var(--muted); }
+  .hint-box {
+    display: none;
+    background: rgba(74,158,221,.08);
+    border: 1px solid rgba(74,158,221,.25);
+    border-radius: 4px;
+    padding: .7rem;
+    margin-top: .5rem;
+    font-size: .85rem;
+    color: var(--blue);
+  }
+  .hint-box.visible { display: block; }
+
+  .math-block {
+    background: rgba(0,0,0,.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .6rem 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: .88rem;
+    color: var(--blue);
+    margin: .5rem 0;
+    white-space: pre-wrap;
+  }
+
+  /* ── CODE INPUT ── */
+  .code-section {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    display: flex; align-items: center; gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .code-section label {
+    font-family: 'Courier New', monospace;
+    font-size: .85rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .code-input {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    font-size: 1.4rem;
+    font-weight: bold;
+    padding: .4rem .8rem;
+    width: 140px;
+    text-align: center;
+    border-radius: 4px;
+    letter-spacing: .2em;
+    transition: border-color .2s;
+    text-transform: uppercase;
+  }
+  .code-input:focus { outline: none; border-color: var(--amber); }
+  .code-feedback {
+    font-size: .88rem;
+    font-family: 'Courier New', monospace;
+    min-width: 100px;
+  }
+  .code-feedback.ok { color: var(--green); }
+  .code-feedback.err { color: var(--red); }
+
+  /* ── LÖSUNG ANZEIGE ── */
+  .solution-reveal {
+    display: none;
+    background: rgba(46,204,113,.07);
+    border: 1px solid rgba(46,204,113,.3);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    font-size: .9rem;
+  }
+  .solution-reveal.visible { display: block; }
+  .solution-reveal h4 { color: var(--green); margin-bottom: .5rem; font-size: .9rem; }
+
+  /* ── FINAL ── */
+  #final {
+    display: none;
+    text-align: center;
+    padding: 2rem 1rem;
+    animation: fadeIn .6s ease;
+  }
+  #final.visible { display: block; }
+  .final-badge {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+  .final-title {
+    font-family: 'Courier New', monospace;
+    font-size: 1.8rem;
+    color: var(--green);
+    font-weight: bold;
+    letter-spacing: .08em;
+    margin-bottom: .5rem;
+  }
+  .final-sub { color: var(--muted); margin-bottom: 2rem; }
+  .final-codes {
+    display: flex; gap: 1rem; justify-content: center;
+    flex-wrap: wrap; margin-bottom: 2rem;
+  }
+  .final-code-chip {
+    background: var(--panel);
+    border: 1px solid var(--green);
+    border-radius: 6px;
+    padding: .6rem 1.2rem;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+    color: var(--green);
+    font-weight: bold;
+    letter-spacing: .15em;
+  }
+
+  /* ── LEHRERMODUS ── */
+  #teacher-modal {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 500;
+    align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  #teacher-modal.visible { display: flex; }
+  .teacher-panel {
+    background: var(--panel);
+    border: 1px solid var(--amber);
+    border-radius: 8px;
+    padding: 1.5rem;
+    max-width: 560px; width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .teacher-panel h3 {
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    letter-spacing: .05em;
+  }
+  .teacher-row {
+    display: flex; justify-content: space-between;
+    align-items: baseline;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--border);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .teacher-row:last-child { border-bottom: none; }
+  .teacher-room { font-size: .85rem; color: var(--muted); flex: 1; }
+  .teacher-answer { font-family: 'Courier New', monospace; color: var(--amber); font-weight: bold; }
+  .teacher-pw {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: .5rem .8rem;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    width: 160px;
+    margin-bottom: .8rem;
+  }
+  .teacher-pw:focus { outline: none; border-color: var(--amber); }
+
+  /* ── NAVIGATION ── */
+  .nav-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: .8rem;
+    flex-wrap: wrap; gap: .5rem;
+  }
+
+  table.vierfeldertafel {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .82rem;
+    margin: .6rem 0;
+  }
+  table.vierfeldertafel th, table.vierfeldertafel td {
+    border: 1px solid var(--border);
+    padding: .4rem .6rem;
+    text-align: center;
+  }
+  table.vierfeldertafel th { background: var(--panel2); color: var(--amber); }
+  table.vierfeldertafel td { background: var(--bg); }
+
+  .timer-badge {
+    font-family: 'Courier New', monospace;
+    font-size: .85rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: .2rem .6rem;
+    border-radius: 3px;
+  }
+  .timer-badge.warn { color: var(--amber); border-color: var(--amber); }
+
+  @media (max-width: 600px) {
+    .dossier-body { padding: .8rem; }
+    .top-bar { padding: .6rem .8rem; }
+    .main-area { padding: .7rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="logo-ring">🔍</div>
+  <div class="splash-title">Operation DataTruth</div>
+  <div class="splash-sub">GEHEIMAKTE // ANALYTIK-EINHEIT // STUFE 11</div>
+  <div class="splash-desc">
+    Du bist Analyst:in einer unabhängigen Faktenprüf-Behörde.<br>
+    Vier manipulierte Statistiken kursieren in der Öffentlichkeit.<br>
+    <strong>Entlarve jede Lüge mit Mathematik</strong> – bevor sie Schlagzeilen macht.<br><br>
+    Jede gelöste Akte liefert einen Codeschlüssel.<br>
+    Alle vier Codes zusammen schließen den Haupttresor auf.
+  </div>
+  <div style="display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame()">AKTE ÖFFNEN</button>
+    <button class="btn intro-btn" id="introBtn" onclick="toggleIntro()">▶ INTRO</button>
+    <button class="btn secondary" onclick="openTeacherModal()">Lehrermodus</button>
+  </div>
+  <div id="intro-status" style="margin-top:1rem;height:1.4rem;font-family:'Courier New',monospace;font-size:.8rem;color:var(--muted);letter-spacing:.06em"></div>
+</div>
+
+<!-- INTRO OVERLAY (Waveform-Visualizer) -->
+<div id="intro-overlay">
+  <canvas id="waveCanvas"></canvas>
+  <div id="intro-transcript"></div>
+  <button class="btn secondary" style="margin-top:1.5rem;font-size:.8rem" onclick="stopIntro()">■ STOPP</button>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="top-bar">
+    <div class="logo">⬡ OPERATION DATATRUTH</div>
+    <div class="sep"></div>
+    <div class="progress-dots">
+      <div class="dot active" id="dot0" title="Raum 1">1</div>
+      <div class="dot" id="dot1" title="Raum 2">2</div>
+      <div class="dot" id="dot2" title="Raum 3">3</div>
+      <div class="dot" id="dot3" title="Raum 4">4</div>
+    </div>
+    <div class="timer-badge" id="timer">⏱ 00:00</div>
+    <button class="btn secondary" style="font-size:.75rem;padding:.3rem .7rem" onclick="openTeacherModal()">Lehrer</button>
+  </div>
+
+  <div class="main-area">
+
+    <!-- ══════════════════════════════════════════════
+         RAUM 1 – Impfstatistik & Bayes
+    ══════════════════════════════════════════════ -->
+    <div class="room active" id="room0">
+      <div class="dossier">
+        <div class="dossier-header">
+          <div class="room-tag">AKTE 01 / 04</div>
+          <div class="dossier-title">🏥 Impfstatistik – Wer landet im Krankenhaus?</div>
+        </div>
+        <div class="dossier-body">
+
+          <div class="scenario-text">
+            Eine Politikerin behauptet im Fernsehen:<br>
+            <em>„Von 100 Krankenhauspatienten mit Corona waren 70 geimpft – der Impfstoff schützt also kaum!"</em><br>
+            Die Meldung verbreitet sich viral. Deine Aufgabe: Stimmt das wirklich?
+          </div>
+
+          <div class="infographic">
+            <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem;font-family:'Courier New',monospace">DATENLAGE DER BEHÖRDE (erfunden, aber realistisch)</p>
+            <canvas id="chart1" class="chart" width="480" height="180"></canvas>
+            <div class="claim-box">
+              <strong>Behauptung:</strong> „70 % der Hospitalisierten sind geimpft → Impfung schützt kaum."
+            </div>
+          </div>
+
+          <div class="aufgaben">
+            <div class="aufgabe">
+              <h4>AUFGABE 1.1 – Gegebene Daten einordnen</h4>
+              <p>Die Behörde liefert folgende Grunddaten zur Bevölkerung (1 000 000 Personen):</p>
+              <ul>
+                <li>Impfquote: <strong>80 %</strong> (800 000 Geimpfte, 200 000 Ungeimpfte)</li>
+                <li>Hospitalisierungsrate Geimpfte: <strong>0,35 %</strong></li>
+                <li>Hospitalisierungsrate Ungeimpfte: <strong>3,5 %</strong></li>
+              </ul>
+              <p>Fülle die Vierfeldertafel aus:</p>
+              <table class="vierfeldertafel">
+                <tr><th></th><th>hospitalisiert</th><th>nicht hosp.</th><th>Summe</th></tr>
+                <tr><th>geimpft</th><td>?</td><td>?</td><td>800 000</td></tr>
+                <tr><th>ungeimpft</th><td>?</td><td>?</td><td>200 000</td></tr>
+                <tr><th>Summe</th><td>?</td><td>?</td><td>1 000 000</td></tr>
+              </table>
+              <button class="hint-toggle" onclick="toggleHint('h1a')">💡 Hinweis</button>
+              <div class="hint-box" id="h1a">
+                Geimpfte Hospitalisierte = 800 000 × 0,0035 = 2 800<br>
+                Ungeimpfte Hospitalisierte = 200 000 × 0,035 = 7 000
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 1.2 – Bedingte Wahrscheinlichkeit berechnen</h4>
+              <p>Berechne mit der Vierfeldertafel:</p>
+              <div class="math-block">P(geimpft | hospitalisiert) = ?
+P(hospitalisiert | geimpft) = ?
+P(hospitalisiert | ungeimpft) = ?</div>
+              <p>Was bedeutet der Unterschied zwischen diesen drei Wahrscheinlichkeiten?</p>
+              <button class="hint-toggle" onclick="toggleHint('h1b')">💡 Hinweis</button>
+              <div class="hint-box" id="h1b">
+                Gesamtzahl Hospitalisierter = 2800 + 7000 = 9800<br>
+                P(geimpft | hosp.) = 2800/9800 ≈ 0,286 ≈ 28,6 %<br>
+                P(hosp. | geimpft) = 2800/800000 = 0,35 %<br>
+                P(hosp. | ungeimpft) = 7000/200000 = 3,5 %
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 1.3 – Den Fehler benennen</h4>
+              <p>Die Politikerin berechnet implizit <em>P(geimpft | hospitalisiert)</em> und zieht daraus den falschen Schluss.</p>
+              <p>Erkläre in 2 Sätzen, warum diese Argumentation logisch falsch ist. Welche Wahrscheinlichkeit wäre die richtige für die Frage <em>„Schützt die Impfung?"</em></p>
+              <button class="hint-toggle" onclick="toggleHint('h1c')">💡 Hinweis</button>
+              <div class="hint-box" id="h1c">
+                Stichwort: „Basis-Raten-Vernachlässigung" (Base Rate Neglect).<br>
+                Die hohe Impfquote erklärt, warum trotzdem viele Geimpfte hospitalisiert werden – absolut, nicht relativ.<br>
+                Relevant ist P(hosp. | geimpft) vs. P(hosp. | ungeimpft): 0,35 % vs. 3,5 % → 10-facher Schutz!
+              </div>
+            </div>
+          </div>
+
+          <div class="code-section">
+            <label>CODE-WORT (Raum 1):</label>
+            <input class="code-input" id="code0" placeholder="????" maxlength="5" oninput="checkCode(0)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <div class="code-feedback" id="fb0"></div>
+          </div>
+          <div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);font-family:'Courier New',monospace">
+            → Das Codewort ist die (auf ganze Zahl gerundete) Prozentzahl von P(geimpft | hospitalisiert): z.B. bei 28,6 % → Eingabe: <span style="color:var(--amber)">29</span>
+          </div>
+
+          <div class="solution-reveal" id="sol0">
+            <h4>✓ RAUM 1 ENTSCHLÜSSELT</h4>
+            <p>P(geimpft | hosp.) = 2800 / 9800 ≈ <strong>28,6 %</strong> → Code: <strong>29</strong></p>
+            <p style="margin-top:.5rem;font-size:.85rem;color:var(--muted)">Die Politikerin vertauscht Ursache und Wirkung. Der Impfstoff reduziert das individuelle Risiko um den Faktor 10 – trotzdem sind absolut mehr Geimpfte im Krankenhaus, weil sie die Mehrheit der Bevölkerung bilden.</p>
+          </div>
+
+          <div class="nav-row">
+            <div></div>
+            <button class="btn" id="next0" style="display:none" onclick="goRoom(1)">NÄCHSTE AKTE →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         RAUM 2 – CO₂ & Ableitungen
+    ══════════════════════════════════════════════ -->
+    <div class="room" id="room1">
+      <div class="dossier">
+        <div class="dossier-header">
+          <div class="room-tag">AKTE 02 / 04</div>
+          <div class="dossier-title">📈 CO₂-Emissionen – „Wir werden besser!"</div>
+        </div>
+        <div class="dossier-body">
+
+          <div class="scenario-text">
+            Ein Wirtschaftsminister verkündet stolz:<br>
+            <em>„Die CO₂-Emissionen steigen immer langsamer – unsere Klimapolitik wirkt! Der Höhepunkt ist bald überschritten."</em><br>
+            Stimmt das? Und was genau bedeutet „immer langsamer steigen" mathematisch?
+          </div>
+
+          <div class="infographic">
+            <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem;font-family:'Courier New',monospace">MODELL-FUNKTION DER EMISSIONEN (vereinfacht, t in Jahren seit 2000)</p>
+            <canvas id="chart2" class="chart" width="480" height="200"></canvas>
+            <div class="claim-box">
+              <strong>Behauptung:</strong> „Die Kurve flacht ab – bald sinken die Emissionen."
+            </div>
+          </div>
+
+          <div class="aufgaben">
+            <div class="aufgabe">
+              <h4>AUFGABE 2.1 – Funktion und Ableitung</h4>
+              <p>Die Emissionen werden modelliert durch:</p>
+              <div class="math-block">f(t) = −0,05·t³ + 1,2·t² + 2·t + 380   [ppm CO₂, t ∈ [0, 30]]</div>
+              <p>Bestimme f'(t) und f''(t).</p>
+              <button class="hint-toggle" onclick="toggleHint('h2a')">💡 Hinweis</button>
+              <div class="hint-box" id="h2a">
+                f'(t) = −0,15·t² + 2,4·t + 2<br>
+                f''(t) = −0,3·t + 2,4
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 2.2 – Aussage des Ministers prüfen</h4>
+              <p>Der Minister behauptet, die Emissionen „steigen immer langsamer". Überprüfe:</p>
+              <ul>
+                <li>Für welche t gilt f'(t) > 0? (Emissionen steigen noch)</li>
+                <li>Für welche t gilt f''(t) < 0? (Steigung nimmt ab = „immer langsamer")</li>
+                <li>Berechne den <strong>Wendepunkt</strong> der Funktion: Für welches t ändert sich das Krümmungsverhalten?</li>
+              </ul>
+              <button class="hint-toggle" onclick="toggleHint('h2b')">💡 Hinweis</button>
+              <div class="hint-box" id="h2b">
+                f''(t) = 0 → −0,3t + 2,4 = 0 → t = 8<br>
+                Für t > 8: f''(t) < 0 → Rechtskrümmung, Zunahme verlangsamt sich ✓<br>
+                Für t < 8: f''(t) > 0 → Linkskrümmung, Zunahme beschleunigt sich noch!<br>
+                Die Nullstelle von f'(t): −0,15t² + 2,4t + 2 = 0 → t ≈ 16,8 (Maximum)
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 2.3 – Kritische Bewertung</h4>
+              <p>Beantworte: Ist die Aussage des Ministers mathematisch korrekt?</p>
+              <p>Berechne, in welchem Jahr (ab 2000 gerechnet) das <strong>Maximum</strong> der Emissionen laut Modell erreicht wird. Runde auf ganze Jahre.</p>
+              <p style="font-size:.82rem;color:var(--muted)">Nutze die Lösungsformel oder Näherung für f'(t) = 0.</p>
+              <button class="hint-toggle" onclick="toggleHint('h2c')">💡 Hinweis</button>
+              <div class="hint-box" id="h2c">
+                f'(t) = 0: −0,15t² + 2,4t + 2 = 0<br>
+                t = (−2,4 ± √(5,76 + 1,2)) / (−0,3)<br>
+                t = (−2,4 ± √6,96) / (−0,3) ≈ (−2,4 ± 2,638) / (−0,3)<br>
+                Positive Lösung: t ≈ (−2,4 + 2,638)/(−0,3) → nimm andere: t ≈ (−2,4 − 2,638)/(−0,3) ≈ 16,8<br>
+                Also ca. Jahr 2017 → Emissionen steigen bis 2017, dann fallen sie laut Modell.
+              </div>
+            </div>
+          </div>
+
+          <div class="code-section">
+            <label>CODE-ZAHL (Raum 2):</label>
+            <input class="code-input" id="code1" placeholder="????" maxlength="4" oninput="checkCode(1)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <div class="code-feedback" id="fb1"></div>
+          </div>
+          <div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);font-family:'Courier New',monospace">
+            → Das Codewort ist das Jahr des Emissionsmaximums laut Modell (z.B. 2017 → Eingabe: <span style="color:var(--amber)">2017</span>)
+          </div>
+
+          <div class="solution-reveal" id="sol1">
+            <h4>✓ RAUM 2 ENTSCHLÜSSELT</h4>
+            <p>Maximum bei t ≈ 16,8 → Jahr <strong>2017</strong>. Code: <strong>2017</strong></p>
+            <p style="margin-top:.5rem;font-size:.85rem;color:var(--muted)">Der Minister hat <em>formal</em> Recht für den betrachteten Zeitraum nach t=8. Aber: Die Emissionen steigen noch! Erst nach t≈17 sinken sie laut Modell. „Immer langsamer steigen" ist nicht dasselbe wie „bald sinken".</p>
+          </div>
+
+          <div class="nav-row">
+            <button class="btn secondary" onclick="goRoom(0)">← ZURÜCK</button>
+            <button class="btn" id="next1" style="display:none" onclick="goRoom(2)">NÄCHSTE AKTE →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         RAUM 3 – Kriminalstatistik & Risikowahrnehmung
+    ══════════════════════════════════════════════ -->
+    <div class="room" id="room2">
+      <div class="dossier">
+        <div class="dossier-header">
+          <div class="room-tag">AKTE 03 / 04</div>
+          <div class="dossier-title">⚖️ Kriminalstatistik – Wer ist gefährlich?</div>
+        </div>
+        <div class="dossier-body">
+
+          <div class="scenario-text">
+            Eine Schlagzeile lautet:<br>
+            <em>„Ausländer überproportional in Kriminalstatistik – 30 % der Tatverdächtigen, aber nur 15 % der Bevölkerung!"</em><br>
+            Welche Fragen müssen gestellt werden, bevor diese Zahl eine Aussage zulässt?
+          </div>
+
+          <div class="infographic">
+            <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem;font-family:'Courier New',monospace">MODELL-DATENSATZ (fiktiv, illustrativ)</p>
+            <canvas id="chart3" class="chart" width="480" height="180"></canvas>
+            <div class="claim-box">
+              <strong>Behauptung:</strong> Gruppe B ist 2× häufiger in Statistik als Anteil → höheres „kriminelles Risiko"
+            </div>
+          </div>
+
+          <div class="aufgaben">
+            <div class="aufgabe">
+              <h4>AUFGABE 3.1 – Konfundierung erkennen</h4>
+              <p>Gegeben: 1 000 000 Personen. Gruppe A (85 %, 850 000), Gruppe B (15 %, 150 000).</p>
+              <p>Tatverdächtige gesamt: 50 000. Davon 35 000 aus Gruppe A, 15 000 aus Gruppe B.</p>
+              <p>Berechne: P(TV | A) und P(TV | B). Was ergibt sich?</p>
+              <button class="hint-toggle" onclick="toggleHint('h3a')">💡 Hinweis</button>
+              <div class="hint-box" id="h3a">
+                P(TV | A) = 35000/850000 ≈ 4,12 %<br>
+                P(TV | B) = 15000/150000 = 10 %<br>
+                Tatsächlich höher – aber: Sind die Gruppen vergleichbar? (Altersstruktur, Einkommensschicht, Wohnort?)
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 3.2 – Altersstruktur als Störvariable</h4>
+              <p>Neue Information: In Gruppe B sind 60 % der Personen unter 30 Jahre alt. In Gruppe A nur 20 %.</p>
+              <p>Die allgemeine Tatverdächtigenrate für unter 30-Jährige beträgt 8 %, für über 30-Jährige 2 %.</p>
+              <p>Berechne für <strong>Gruppe A</strong> die <em>erwartete</em> Tatverdächtigenrate, wenn man Altersstruktur berücksichtigt:</p>
+              <div class="math-block">P(TV | A) = P(TV | jung) · P(jung | A) + P(TV | alt) · P(alt | A)
+            = 0,08 · 0,20 + 0,02 · 0,80 = ?</div>
+              <p>Berechne dasselbe für <strong>Gruppe B</strong>. Was fällt auf?</p>
+              <button class="hint-toggle" onclick="toggleHint('h3b')">💡 Hinweis</button>
+              <div class="hint-box" id="h3b">
+                Gruppe A: 0,08·0,20 + 0,02·0,80 = 0,016 + 0,016 = 3,2 %<br>
+                Gruppe B: 0,08·0,60 + 0,02·0,40 = 0,048 + 0,008 = 5,6 %<br>
+                Viel näher beieinander! Der Unterschied erklärt sich fast vollständig durch die Altersstruktur.
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 3.3 – Gesamtrate Gruppe B</h4>
+              <p>Berechne den Prozentwert (auf eine Dezimalstelle) der erwarteten Tatverdächtigenrate für Gruppe B nach Altersbereinigung.</p>
+              <p style="font-size:.82rem;color:var(--muted)">Dieser Wert (× 10, als ganze Zahl) ist der Raumcode.</p>
+            </div>
+          </div>
+
+          <div class="code-section">
+            <label>CODE-ZAHL (Raum 3):</label>
+            <input class="code-input" id="code2" placeholder="??" maxlength="3" oninput="checkCode(2)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <div class="code-feedback" id="fb2"></div>
+          </div>
+          <div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);font-family:'Courier New',monospace">
+            → Rate Gruppe B in % (× 10, ganze Zahl). Bei 5,6 % → Eingabe: <span style="color:var(--amber)">56</span>
+          </div>
+
+          <div class="solution-reveal" id="sol2">
+            <h4>✓ RAUM 3 ENTSCHLÜSSELT</h4>
+            <p>Erwartete Rate Gruppe B = 5,6 % → 5,6 × 10 = <strong>56</strong>. Code: <strong>56</strong></p>
+            <p style="margin-top:.5rem;font-size:.85rem;color:var(--muted)">Das sog. „Totale Satz der Wahrscheinlichkeit" zeigt: Nach Altersbereinigung ist der Unterschied viel kleiner. Sozioökonomische Faktoren erklären einen Großteil der Rohzahlen – die Schlagzeile ist irreführend vereinfachend.</p>
+          </div>
+
+          <div class="nav-row">
+            <button class="btn secondary" onclick="goRoom(1)">← ZURÜCK</button>
+            <button class="btn" id="next2" style="display:none" onclick="goRoom(3)">NÄCHSTE AKTE →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         RAUM 4 – Wahlprognose & FINALE
+    ══════════════════════════════════════════════ -->
+    <div class="room" id="room3">
+      <div class="dossier">
+        <div class="dossier-header">
+          <div class="room-tag">AKTE 04 / 04 — FINALE</div>
+          <div class="dossier-title">🗳️ Wahlprognose – Der „sichere" Sieg</div>
+        </div>
+        <div class="dossier-body">
+
+          <div class="scenario-text">
+            Eine Partei liegt laut Umfrage bei 52 % – und jubelt:<br>
+            <em>„Absoluten Sieg in der Tasche! Die Umfrage ist eindeutig!"</em><br>
+            Doch wie verlässlich ist eine Umfrage? Und was sagt die Ableitung über Wahltrends?
+          </div>
+
+          <div class="infographic">
+            <canvas id="chart4" class="chart" width="480" height="190"></canvas>
+            <div class="claim-box">
+              <strong>Behauptung:</strong> 52 % in der Umfrage = sicherer Sieg über 50 %-Hürde.
+            </div>
+          </div>
+
+          <div class="aufgaben">
+            <div class="aufgabe">
+              <h4>AUFGABE 4.1 – Vertrauensintervall verstehen</h4>
+              <p>Eine Umfrage mit n = 1000 Befragten ergibt 52 % Zustimmung (p̂ = 0,52).</p>
+              <p>Der Standardfehler ist: SE = √(p̂·(1−p̂)/n)</p>
+              <p>Das 95%-Konfidenzintervall lautet näherungsweise: p̂ ± 1,96 · SE</p>
+              <p>Berechne das Intervall. Ist 50 % darin enthalten?</p>
+              <button class="hint-toggle" onclick="toggleHint('h4a')">💡 Hinweis</button>
+              <div class="hint-box" id="h4a">
+                SE = √(0,52·0,48/1000) = √(0,0002496) ≈ 0,01580<br>
+                Intervall: 0,52 ± 1,96·0,01580 = 0,52 ± 0,031<br>
+                Also: [48,9 %; 55,1 %] → 50 % liegt im Intervall → kein „sicherer" Sieg!
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 4.2 – Trendanalyse mit Ableitungen</h4>
+              <p>Der Umfrageverlauf der letzten 8 Wochen lässt sich modellieren durch:</p>
+              <div class="math-block">g(t) = 0,03·t³ − 0,45·t² + 1,8·t + 48   [% Zustimmung, t = Wochen]</div>
+              <p>Berechne g'(t) und bestimme: Steigt oder fällt der Trend in Woche t = 6?</p>
+              <p>Berechne außerdem den Wendepunkt (g''(t) = 0). Was bedeutet er politisch?</p>
+              <button class="hint-toggle" onclick="toggleHint('h4b')">💡 Hinweis</button>
+              <div class="hint-box" id="h4b">
+                g'(t) = 0,09t² − 0,90t + 1,8<br>
+                g'(6) = 0,09·36 − 0,90·6 + 1,8 = 3,24 − 5,4 + 1,8 = −0,36 → fallend in Woche 6!<br>
+                g''(t) = 0,18t − 0,90 = 0 → t = 5<br>
+                Bei t=5 wechselt die Kurve von „immer schneller steigend" zu „immer langsamer steigend/fallend" → Wendepunkt = Stimmungsumschwung
+              </div>
+            </div>
+
+            <div class="aufgabe">
+              <h4>AUFGABE 4.3 – Finale Kombinationsaufgabe</h4>
+              <p>Zusatzinformation: Die Partei A liegt bei 52 %, die Konkurrenz B bei 44 %. <br>
+              4 % der Befragten sind unentschlossen. Bei unentschlossenen Wählern gilt historisch:</p>
+              <ul>
+                <li>P(wählt A | unentschlossen) = 35 %</li>
+                <li>P(wählt B | unentschlossen) = 45 %</li>
+                <li>P(wählt andere | unentschlossen) = 20 %</li>
+              </ul>
+              <p>Berechne den <strong>erwarteten Endwert</strong> für Partei A unter Einbeziehung der Unentschlossenen.</p>
+              <div class="math-block">P(A gesamt) = 0,52 + 0,04 · 0,35 = ?  (in %)</div>
+              <button class="hint-toggle" onclick="toggleHint('h4c')">💡 Hinweis</button>
+              <div class="hint-box" id="h4c">
+                P(A) = 0,52 + 0,04 · 0,35 = 0,52 + 0,014 = 0,534 = 53,4 %<br>
+                Noch immer statistisch unsicher! Konfidenzintervall überlappt immer noch mit 50 %.
+              </div>
+            </div>
+          </div>
+
+          <div class="code-section">
+            <label>CODE-ZAHL (Raum 4):</label>
+            <input class="code-input" id="code3" placeholder="??" maxlength="3" oninput="checkCode(3)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <div class="code-feedback" id="fb3"></div>
+          </div>
+          <div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);font-family:'Courier New',monospace">
+            → Erwarteter Endwert Partei A in % (× 10, ganze Zahl). Bei 53,4 % → Eingabe: <span style="color:var(--amber)">534</span>
+          </div>
+
+          <div class="solution-reveal" id="sol3">
+            <h4>✓ RAUM 4 ENTSCHLÜSSELT</h4>
+            <p>P(A gesamt) = 53,4 % → 53,4 × 10 = <strong>534</strong>. Code: <strong>534</strong></p>
+            <p style="margin-top:.5rem;font-size:.85rem;color:var(--muted)">Selbst 53,4 % liegen innerhalb des Konfidenzintervalls von ±3,1 %. Der „sichere Sieg" ist statistisch nicht belegt.</p>
+          </div>
+
+          <div class="nav-row">
+            <button class="btn secondary" onclick="goRoom(2)">← ZURÜCK</button>
+            <button class="btn" id="next3" style="display:none" onclick="showFinal()">🔓 TRESOR ÖFFNEN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         FINAL
+    ══════════════════════════════════════════════ -->
+    <div id="final">
+      <div class="final-badge">🏆</div>
+      <div class="final-title">MISSION ERFÜLLT</div>
+      <div class="final-sub">Alle vier Akten entschlüsselt – die Öffentlichkeit ist informiert.</div>
+      <div class="final-codes">
+        <div class="final-code-chip">Akte 1: 29</div>
+        <div class="final-code-chip">Akte 2: 2017</div>
+        <div class="final-code-chip">Akte 3: 56</div>
+        <div class="final-code-chip">Akte 4: 534</div>
+      </div>
+      <div style="max-width:520px;margin:0 auto 2rem;font-size:.9rem;color:var(--muted);text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1.2rem">
+        <h3 style="color:var(--amber);font-family:'Courier New',monospace;font-size:.9rem;margin-bottom:.8rem">📋 LERNZUSAMMENFASSUNG</h3>
+        <p style="margin-bottom:.5rem"><strong style="color:var(--text)">Raum 1:</strong> Bedingte Wahrscheinlichkeiten können täuschen – immer P(A|B) ≠ P(B|A) beachten. Basis-Raten sind entscheidend.</p>
+        <p style="margin-bottom:.5rem"><strong style="color:var(--text)">Raum 2:</strong> f''(t) &lt; 0 bedeutet „Zunahme verlangsamt sich", nicht „sinkt bereits". Extrempunkt ≠ Wendepunkt.</p>
+        <p style="margin-bottom:.5rem"><strong style="color:var(--text)">Raum 3:</strong> Störvariablen (Konfundierung) erklären Rohzahlen. Totaler Satz der Wahrscheinlichkeit zur Adjustierung.</p>
+        <p><strong style="color:var(--text)">Raum 4:</strong> Konfidenzintervalle zeigen Unsicherheit in Umfragen. Unentschlossene via bedingter Wahrscheinlichkeit einrechnen.</p>
+      </div>
+      <button class="btn" onclick="resetGame()">↺ NEUE RUNDE</button>
+    </div>
+
+  </div><!-- main-area -->
+</div><!-- app -->
+
+<!-- LEHRERMODUS MODAL -->
+<div id="teacher-modal">
+  <div class="teacher-panel">
+    <h3>🔑 LEHRERMODUS – LÖSUNGSÜBERSICHT</h3>
+    <div id="teacher-auth">
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:.8rem">Passwort eingeben:</p>
+      <input class="teacher-pw" type="password" id="teacher-pw-input" placeholder="Passwort" onkeydown="if(event.key==='Enter')checkTeacherPw()">
+      <br>
+      <button class="btn" onclick="checkTeacherPw()">ENTSPERREN</button>
+      <button class="btn secondary" onclick="closeTeacherModal()" style="margin-top:.5rem">Abbrechen</button>
+      <div id="teacher-err" style="color:var(--red);font-size:.8rem;margin-top:.5rem"></div>
+    </div>
+    <div id="teacher-content" style="display:none">
+      <div class="teacher-row">
+        <div class="teacher-room">🏥 Raum 1 – Impfstatistik<br><span style="font-size:.78rem">P(geimpft | hosp.) ≈ 28,6 % → Code:</span></div>
+        <div class="teacher-answer">29</div>
+      </div>
+      <div class="teacher-row">
+        <div class="teacher-room">📈 Raum 2 – CO₂ / Ableitungen<br><span style="font-size:.78rem">Maximum bei t≈16,8 → Jahr:</span></div>
+        <div class="teacher-answer">2017</div>
+      </div>
+      <div class="teacher-row">
+        <div class="teacher-room">⚖️ Raum 3 – Kriminalstatistik<br><span style="font-size:.78rem">Rate Gr. B adjustiert = 5,6 % → ×10:</span></div>
+        <div class="teacher-answer">56</div>
+      </div>
+      <div class="teacher-row">
+        <div class="teacher-room">🗳️ Raum 4 – Wahlprognose<br><span style="font-size:.78rem">P(A) = 53,4 % → ×10:</span></div>
+        <div class="teacher-answer">534</div>
+      </div>
+      <div style="margin-top:1rem;font-size:.8rem;color:var(--muted)">
+        Alle Codes freischalten (Demo): Tippe die Codes direkt ein oder nutze „Alle lösen" unten.
+      </div>
+      <button class="btn" style="margin-top:.8rem;font-size:.8rem" onclick="solveAll()">✓ ALLE RÄUME LÖSEN</button>
+      <button class="btn secondary" style="margin-top:.8rem" onclick="closeTeacherModal()">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+const CODES = ['29','2017','56','534'];
+const TEACHER_PW = 'mathe11';
+let solved = [false,false,false,false];
+let currentRoom = 0;
+let timerInterval = null;
+let startTime = null;
+
+// ── SPLASH / START ──
+function startGame() {
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  startTimer();
+  drawCharts();
+}
+
+function resetGame() {
+  solved = [false,false,false,false];
+  currentRoom = 0;
+  document.getElementById('final').classList.remove('visible');
+  document.getElementById('final').style.display='none';
+  // reset dots
+  for(let i=0;i<4;i++){
+    const d=document.getElementById('dot'+i);
+    d.className='dot';
+    if(i===0) d.classList.add('active');
+  }
+  // reset rooms
+  document.querySelectorAll('.room').forEach((r,i)=>{
+    r.classList.toggle('active',i===0);
+  });
+  // reset inputs
+  for(let i=0;i<4;i++){
+    const inp=document.getElementById('code'+i);
+    if(inp){inp.value=''; inp.style.borderColor='';}
+    const fb=document.getElementById('fb'+i);
+    if(fb){fb.textContent='';fb.className='code-feedback';}
+    const sol=document.getElementById('sol'+i);
+    if(sol) sol.classList.remove('visible');
+    const nxt=document.getElementById('next'+i);
+    if(nxt) nxt.style.display='none';
+    // reset hints
+    document.querySelectorAll('.hint-box').forEach(h=>h.classList.remove('visible'));
+  }
+  startTime = Date.now();
+}
+
+// ── TIMER ──
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(()=>{
+    const el = document.getElementById('timer');
+    const s = Math.floor((Date.now()-startTime)/1000);
+    const m = Math.floor(s/60).toString().padStart(2,'0');
+    const sc = (s%60).toString().padStart(2,'0');
+    el.textContent = `⏱ ${m}:${sc}`;
+    el.className = s > 1800 ? 'timer-badge warn' : 'timer-badge';
+  },1000);
+}
+
+// ── NAVIGATION ──
+function goRoom(idx) {
+  document.querySelectorAll('.room').forEach((r,i)=>r.classList.toggle('active',i===idx));
+  currentRoom = idx;
+  updateDots();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function updateDots() {
+  for(let i=0;i<4;i++){
+    const d=document.getElementById('dot'+i);
+    d.className='dot';
+    if(solved[i]) d.classList.add('done');
+    else if(i===currentRoom) d.classList.add('active');
+  }
+}
+
+// ── CODE CHECK ──
+function checkCode(idx) {
+  const inp = document.getElementById('code'+idx);
+  const fb  = document.getElementById('fb'+idx);
+  const val = inp.value.trim();
+  if(!val) { fb.textContent=''; inp.style.borderColor=''; return; }
+  if(val === CODES[idx]) {
+    fb.textContent = '✓ KORREKT'; fb.className='code-feedback ok';
+    inp.style.borderColor = 'var(--green)';
+    solved[idx] = true;
+    document.getElementById('sol'+idx).classList.add('visible');
+    const nxt = document.getElementById('next'+idx);
+    if(nxt) nxt.style.display='inline-block';
+    updateDots();
+    if(idx===3) {
+      setTimeout(()=>{
+        document.getElementById('next3').textContent='🔓 TRESOR ÖFFNEN';
+      },100);
+    }
+  } else {
+    fb.textContent = '✗ Nicht korrekt'; fb.className='code-feedback err';
+    inp.style.borderColor = 'var(--red)';
+  }
+}
+
+function showFinal() {
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  const f=document.getElementById('final');
+  f.style.display='block';
+  f.classList.add('visible');
+  clearInterval(timerInterval);
+}
+
+// ── HINTS ──
+function toggleHint(id) {
+  const h = document.getElementById(id);
+  h.classList.toggle('visible');
+}
+
+// ── TEACHER ──
+function openTeacherModal() {
+  document.getElementById('teacher-modal').classList.add('visible');
+  document.getElementById('teacher-auth').style.display='block';
+  document.getElementById('teacher-content').style.display='none';
+  document.getElementById('teacher-err').textContent='';
+  document.getElementById('teacher-pw-input').value='';
+}
+function closeTeacherModal() {
+  document.getElementById('teacher-modal').classList.remove('visible');
+}
+function checkTeacherPw() {
+  const pw = document.getElementById('teacher-pw-input').value;
+  if(pw === TEACHER_PW) {
+    document.getElementById('teacher-auth').style.display='none';
+    document.getElementById('teacher-content').style.display='block';
+  } else {
+    document.getElementById('teacher-err').textContent='Falsches Passwort.';
+  }
+}
+function solveAll() {
+  for(let i=0;i<4;i++){
+    const inp=document.getElementById('code'+i);
+    if(inp){
+      inp.value=CODES[i];
+      checkCode(i);
+    }
+  }
+  closeTeacherModal();
+  goRoom(3);
+}
+
+// ── CHARTS ──
+function drawCharts() {
+  drawChart1();
+  drawChart2();
+  drawChart3();
+  drawChart4();
+}
+
+function setupCanvas(id, w, h) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.min(w, canvas.parentElement.clientWidth - 32) * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = Math.min(w, canvas.parentElement.clientWidth - 32) + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = Math.min(w, canvas.parentElement.clientWidth - 32);
+  return {ctx, W, H: h};
+}
+
+function drawChart1() {
+  const {ctx,W,H} = setupCanvas('chart1', 480, 180) || {};
+  if (!ctx) return;
+  ctx.clearRect(0,0,W,H);
+  // Bar chart: Geimpfte vs Ungeimpfte hospitalisiert
+  const labels = ['Geimpfte\nhospitalisiert', 'Ungeimpfte\nhospitalisiert'];
+  const vals = [2800, 7000];
+  const colors = ['#4a9edd','#e74c3c'];
+  const maxV = 8000;
+  const barW = 80, gap = (W - barW*2)/3;
+  const chartH = H - 50; const top = 20;
+  ctx.fillStyle='#1a2a3a';
+  ctx.fillRect(0,0,W,H);
+  vals.forEach((v,i)=>{
+    const x = gap + i*(barW+gap);
+    const bh = (v/maxV)*chartH;
+    const y = top + chartH - bh;
+    ctx.fillStyle = colors[i];
+    ctx.fillRect(x,y,barW,bh);
+    ctx.fillStyle='#e8edf2';
+    ctx.font='bold 13px Courier New';
+    ctx.textAlign='center';
+    ctx.fillText(v.toLocaleString('de'), x+barW/2, y-6);
+    ctx.font='11px -apple-system,sans-serif';
+    ctx.fillStyle='#7a9ab8';
+    labels[i].split('\n').forEach((l,li)=>{
+      ctx.fillText(l, x+barW/2, top+chartH+16+li*14);
+    });
+  });
+  // Highlight
+  ctx.strokeStyle='#f5a623'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+  ctx.strokeRect(gap, top, barW*2+gap, chartH);
+  ctx.setLineDash([]);
+  ctx.fillStyle='#f5a623'; ctx.font='10px Courier New'; ctx.textAlign='left';
+  ctx.fillText('⚠ Absolute Zahlen ohne Bevölkerungsanteil!', 8, 14);
+}
+
+function drawChart2() {
+  const {ctx,W,H} = setupCanvas('chart2', 480, 200) || {};
+  if (!ctx) return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a2a3a'; ctx.fillRect(0,0,W,H);
+  const pad = {l:50,r:20,t:30,b:30};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const f = t => -0.05*t**3 + 1.2*t**2 + 2*t + 380;
+  const tMin=0, tMax=30;
+  const fMin=380, fMax=f(17);
+  const tx = t => pad.l + (t-tMin)/(tMax-tMin)*cW;
+  const ty = v => pad.t + cH - (v-fMin)/(fMax-fMin)*cH;
+  // Grid
+  ctx.strokeStyle='#2a4060'; ctx.lineWidth=1;
+  for(let v=380;v<=f(17)+10;v+=50){
+    ctx.beginPath(); ctx.moveTo(pad.l,ty(v)); ctx.lineTo(pad.l+cW,ty(v)); ctx.stroke();
+    ctx.fillStyle='#7a9ab8'; ctx.font='10px Courier New'; ctx.textAlign='right';
+    ctx.fillText(Math.round(v), pad.l-4, ty(v)+4);
+  }
+  // Axes
+  ctx.strokeStyle='#4a6080'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+cH); ctx.lineTo(pad.l+cW,pad.t+cH); ctx.stroke();
+  // Curve
+  ctx.beginPath(); ctx.strokeStyle='#4a9edd'; ctx.lineWidth=2.5;
+  for(let t=0;t<=30;t+=0.2){
+    const x=tx(t),y=ty(f(t));
+    t===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // Wendepunkt marker
+  ctx.beginPath(); ctx.arc(tx(8),ty(f(8)),5,0,Math.PI*2);
+  ctx.fillStyle='#f5a623'; ctx.fill();
+  ctx.fillStyle='#f5a623'; ctx.font='10px Courier New'; ctx.textAlign='left';
+  ctx.fillText('WP t=8', tx(8)+7, ty(f(8))-6);
+  // Maximum marker
+  ctx.beginPath(); ctx.arc(tx(16.8),ty(f(16.8)),5,0,Math.PI*2);
+  ctx.fillStyle='#e74c3c'; ctx.fill();
+  ctx.fillStyle='#e74c3c'; ctx.font='10px Courier New';
+  ctx.fillText('Max t≈17', tx(16.8)-50, ty(f(16.8))-8);
+  // x-axis labels
+  [0,5,10,15,20,25,30].forEach(t=>{
+    ctx.fillStyle='#7a9ab8'; ctx.font='10px Courier New'; ctx.textAlign='center';
+    ctx.fillText(t, tx(t), pad.t+cH+14);
+  });
+  ctx.fillStyle='#7a9ab8'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('t (Jahre seit 2000)', pad.l+cW/2, H-2);
+  ctx.fillStyle='#e8edf2'; ctx.font='bold 11px Courier New'; ctx.textAlign='left';
+  ctx.fillText('f(t) = −0,05t³ + 1,2t² + 2t + 380', pad.l+4, pad.t+14);
+}
+
+function drawChart3() {
+  const {ctx,W,H} = setupCanvas('chart3', 480, 180) || {};
+  if (!ctx) return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a2a3a'; ctx.fillRect(0,0,W,H);
+  // Horizontal stacked bars
+  const groups = [
+    {label:'Gruppe A (85%)', tv:35000, nontv:815000, color:'#4a9edd'},
+    {label:'Gruppe B (15%)', tv:15000, nontv:135000, color:'#e74c3c'},
+  ];
+  const barH=40, gap=30, left=140, top=40;
+  const totalW = W-left-20;
+  groups.forEach((g,i)=>{
+    const y = top + i*(barH+gap);
+    const tvW = (g.tv/(g.tv+g.nontv))*totalW;
+    ctx.fillStyle=g.color; ctx.fillRect(left,y,tvW,barH);
+    ctx.fillStyle='#2a4060'; ctx.fillRect(left+tvW,y,totalW-tvW,barH);
+    ctx.fillStyle='#e8edf2'; ctx.font='10px Courier New'; ctx.textAlign='left';
+    ctx.fillText(g.label, 4, y+barH/2+4);
+    const pct = (g.tv/(g.tv+g.nontv)*100).toFixed(1);
+    ctx.fillStyle='white'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    if(tvW>40) ctx.fillText(pct+'%', left+tvW/2, y+barH/2+4);
+    ctx.fillStyle='#7a9ab8'; ctx.font='10px Courier New';
+    ctx.fillText((100-parseFloat(pct)).toFixed(1)+'%', left+tvW+(totalW-tvW)/2, y+barH/2+4);
+  });
+  ctx.fillStyle='#f5a623'; ctx.font='10px Courier New'; ctx.textAlign='left';
+  ctx.fillText('⚠ Rohzahlen ohne Altersbereinigung – irreführend!', 4, H-8);
+  // Legend
+  ctx.fillStyle='#4a9edd'; ctx.fillRect(left, H-22, 12, 10);
+  ctx.fillStyle='#7a9ab8'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('Tatverdächtig', left+16, H-13);
+  ctx.fillStyle='#2a4060'; ctx.fillRect(left+120, H-22, 12, 10);
+  ctx.fillText('Nicht tatverdächtig', left+136, H-13);
+}
+
+function drawChart4() {
+  const {ctx,W,H} = setupCanvas('chart4', 480, 190) || {};
+  if (!ctx) return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a2a3a'; ctx.fillRect(0,0,W,H);
+  const pad={l:50,r:20,t:30,b:30};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const g = t => 0.03*t**3 - 0.45*t**2 + 1.8*t + 48;
+  const weeks = [0,1,2,3,4,5,6,7,8];
+  const vals = weeks.map(g);
+  const vMin=44, vMax=56;
+  const tx = t => pad.l + (t/8)*cW;
+  const ty = v => pad.t + cH - (v-vMin)/(vMax-vMin)*cH;
+  // 50% line
+  ctx.strokeStyle='rgba(231,76,60,.5)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(pad.l,ty(50)); ctx.lineTo(pad.l+cW,ty(50)); ctx.stroke();
+  ctx.fillStyle='#e74c3c'; ctx.font='10px Courier New'; ctx.textAlign='right';
+  ctx.fillText('50%-Hürde', pad.l+cW, ty(50)-4);
+  ctx.setLineDash([]);
+  // Konfidenzband
+  ctx.fillStyle='rgba(74,158,221,.1)';
+  ctx.beginPath();
+  weeks.forEach((t,i)=>{
+    const v=vals[i];
+    const x=tx(t), y=ty(v+3.1);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  [...weeks].reverse().forEach(t=>{
+    const v=g(t);
+    ctx.lineTo(tx(t),ty(v-3.1));
+  });
+  ctx.closePath(); ctx.fill();
+  // Curve
+  ctx.beginPath(); ctx.strokeStyle='#4a9edd'; ctx.lineWidth=2.5;
+  weeks.forEach((t,i)=>{
+    const x=tx(t),y=ty(vals[i]);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  // Dots
+  weeks.forEach((t,i)=>{
+    ctx.beginPath(); ctx.arc(tx(t),ty(vals[i]),4,0,Math.PI*2);
+    ctx.fillStyle='#4a9edd'; ctx.fill();
+  });
+  // Final value marker
+  ctx.beginPath(); ctx.arc(tx(8),ty(vals[8]),6,0,Math.PI*2);
+  ctx.fillStyle='#f5a623'; ctx.fill();
+  ctx.fillStyle='#f5a623'; ctx.font='bold 11px Courier New'; ctx.textAlign='right';
+  ctx.fillText(vals[8].toFixed(1)+'%', tx(8)-8, ty(vals[8])-8);
+  // Grid
+  ctx.strokeStyle='#2a4060'; ctx.lineWidth=1;
+  [46,48,50,52,54].forEach(v=>{
+    ctx.beginPath(); ctx.moveTo(pad.l,ty(v)); ctx.lineTo(pad.l+cW,ty(v)); ctx.stroke();
+    ctx.fillStyle='#7a9ab8'; ctx.font='10px Courier New'; ctx.textAlign='right';
+    ctx.fillText(v+'%', pad.l-4, ty(v)+4);
+  });
+  // x-axis labels
+  weeks.forEach(t=>{
+    ctx.fillStyle='#7a9ab8'; ctx.font='10px Courier New'; ctx.textAlign='center';
+    ctx.fillText('W'+t, tx(t), pad.t+cH+14);
+  });
+  ctx.fillStyle='#e8edf2'; ctx.font='bold 11px Courier New'; ctx.textAlign='left';
+  ctx.fillText('Umfragetrend (±95%-KI in blau)', pad.l+4, pad.t+14);
+}
+
+// ══════════════════════════════════════════════
+// INTRO – iOS-Safari-kompatibel
+// Web Audio API + Web Speech API
+// ══════════════════════════════════════════════
+
+let audioCtx    = null;
+let masterGain  = null;
+let analyser    = null;
+let musicNodes  = [];
+let pulseTimer  = null;   // setInterval für iOS-sicheres Pulse-Scheduling
+let introSpeaking = false;
+let waveAnimId  = null;
+let iosKeepAlive = null;  // iOS speechSynthesis keep-alive
+
+const INTRO_SENTENCES = [
+  'Achtung, Analytik-Einheit. Diese Nachricht ist streng geheim.',
+  'Mein Name ist irrelevant. Was zählt, ist die Mission.',
+  'Vier gefährliche Falschaussagen kursieren in der Öffentlichkeit.',
+  'Politiker, Medien, Social Media – alle verbreiten manipulierte Statistiken.',
+  'Die Gesellschaft wird getäuscht. Du bist die letzte Instanz, die das verhindern kann.',
+  'Deine Waffe ist die Mathematik. Bedingte Wahrscheinlichkeiten. Ableitungen. Logik.',
+  'Raum Eins: eine Impfstatistik, die absichtlich missinterpretiert wird.',
+  'Raum Zwei: Klimadaten, die eine falsche Hoffnung schüren.',
+  'Raum Drei: Kriminalstatistiken, die ein verzerrtes Bild der Realität zeichnen.',
+  'Raum Vier: Wahlprognosen, die einen sicheren Sieg versprechen – der keiner ist.',
+  'Löse alle vier Akten. Berechne. Entlarve. Beweise es.',
+  'Die Wahrheit liegt in den Zahlen. Viel Erfolg, Analyst.'
+];
+
+// ── TOGGLE ──
+function toggleIntro() {
+  if (introSpeaking) { stopIntro(); return; }
+  playIntro();
+}
+
+// ── PLAY ──
+function playIntro() {
+  introSpeaking = true;
+
+  // Overlay sofort zeigen
+  showIntroOverlay(true);
+  document.getElementById('introBtn').textContent = '■ STOPP';
+  document.getElementById('introBtn').classList.add('playing');
+
+  // AudioContext – muss synchron im User-Gesture-Handler erstellt werden (iOS)
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!audioCtx) audioCtx = new AC();
+    // iOS: resume() gibt Promise zurück – erst danach Musik starten
+    const resumePromise = audioCtx.state === 'suspended'
+      ? audioCtx.resume()
+      : Promise.resolve();
+    resumePromise.then(() => { startMusik(); }).catch(() => {});
+  } catch(e) { /* Audio nicht verfügbar – nur Sprache */ }
+
+  // Sprache starten – mit iOS-Voices-Polling
+  loadVoicesThen(startSpeech);
+}
+
+// ── STOP ──
+function stopIntro() {
+  introSpeaking = false;
+
+  // Sprache
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  if (iosKeepAlive) { clearInterval(iosKeepAlive); iosKeepAlive = null; }
+
+  // Musik
+  if (pulseTimer) { clearInterval(pulseTimer); pulseTimer = null; }
+  musicNodes.forEach(n => { try { n.stop ? n.stop(0) : n.disconnect(); } catch(e){} });
+  musicNodes = [];
+  if (masterGain) { try { masterGain.disconnect(); } catch(e){} masterGain = null; }
+  analyser = null;
+
+  // Waveform
+  if (waveAnimId) { cancelAnimationFrame(waveAnimId); waveAnimId = null; }
+
+  showIntroOverlay(false);
+  document.getElementById('introBtn').textContent = '▶ INTRO';
+  document.getElementById('introBtn').classList.remove('playing');
+  document.getElementById('intro-transcript').textContent = '';
+}
+
+function showIntroOverlay(show) {
+  const ov = document.getElementById('intro-overlay');
+  if (show) { ov.classList.add('visible'); setupWaveCanvas(); }
+  else       { ov.classList.remove('visible'); }
+}
+
+// ══════════════════════════════════════════════
+// SPEECH – iOS-sicher
+// ══════════════════════════════════════════════
+
+// iOS lädt Voices asynchron und feuert onvoiceschanged nicht zuverlässig.
+// Polling als Fallback.
+function loadVoicesThen(cb) {
+  if (!window.speechSynthesis) { cb([]); return; }
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) { cb(voices); return; }
+  let tries = 0;
+  const poll = setInterval(() => {
+    const v = window.speechSynthesis.getVoices();
+    if (v.length > 0 || ++tries > 20) { clearInterval(poll); cb(v); }
+  }, 100);
+  // Auch onvoiceschanged als Backup
+  window.speechSynthesis.onvoiceschanged = () => {
+    clearInterval(poll);
+    cb(window.speechSynthesis.getVoices());
+  };
+}
+
+function pickVoice(voices) {
+  // Bevorzuge deutsche Stimme; auf iOS heißt sie "Anna" oder "Markus"
+  return voices.find(v => v.lang.startsWith('de') && /markus|thomas|stefan|daniel/i.test(v.name))
+      || voices.find(v => v.lang === 'de-DE')
+      || voices.find(v => v.lang.startsWith('de'))
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0]
+      || null;
+}
+
+function startSpeech(voices) {
+  if (!window.speechSynthesis || !introSpeaking) return;
+  window.speechSynthesis.cancel();
+
+  const voice = pickVoice(voices || []);
+  const transcriptEl = document.getElementById('intro-transcript');
+  let idx = 0;
+
+  // iOS-Bug: speechSynthesis pausiert nach ~15 s im Hintergrund.
+  // Keep-alive: alle 10 s pause/resume aufrufen.
+  iosKeepAlive = setInterval(() => {
+    if (!introSpeaking) { clearInterval(iosKeepAlive); return; }
+    window.speechSynthesis.pause();
+    window.speechSynthesis.resume();
+  }, 10000);
+
+  function speakNext() {
+    if (!introSpeaking || idx >= INTRO_SENTENCES.length) {
+      if (introSpeaking) stopIntro();
+      return;
+    }
+    const text = INTRO_SENTENCES[idx++];
+    transcriptEl.textContent = text;
+
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang   = 'de-DE';
+    utt.rate   = 0.88;
+    utt.pitch  = 0.82;
+    utt.volume = 1.0;
+    if (voice) utt.voice = voice;
+
+    utt.onend   = () => { if (introSpeaking) setTimeout(speakNext, 150); };
+    utt.onerror = (e) => {
+      // iOS wirft manchmal 'interrupted' beim cancel() – ignorieren
+      if (e.error !== 'interrupted' && introSpeaking) setTimeout(speakNext, 200);
+    };
+
+    window.speechSynthesis.speak(utt);
+  }
+
+  speakNext();
+}
+
+// ══════════════════════════════════════════════
+// MUSIK – iOS-sicher (kein Buffer-Vorrat)
+// ══════════════════════════════════════════════
+
+function startMusik() {
+  if (!audioCtx || !introSpeaking) return;
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  masterGain.gain.linearRampToValueAtTime(0.20, audioCtx.currentTime + 2.5);
+  masterGain.connect(audioCtx.destination);
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  masterGain.connect(analyser);
+
+  // Drone-Oszillatoren (laufen dauerhaft bis stopIntro)
+  function makeDrone(freq, vol) {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const lfo  = audioCtx.createOscillator();
+    const lfoG = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    lfo.frequency.value = 0.15;
+    lfoG.gain.value = 0.5;
+    lfo.connect(lfoG); lfoG.connect(osc.frequency);
+    gain.gain.value = vol;
+    osc.connect(gain); gain.connect(masterGain);
+    lfo.start(); osc.start();
+    musicNodes.push(osc, lfo);
+  }
+
+  function makeChord(freq, delay, vol) {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + delay + 2.0);
+    osc.connect(gain); gain.connect(masterGain);
+    osc.start(audioCtx.currentTime + delay);
+    musicNodes.push(osc);
+  }
+
+  // Sweep (kurze Oszillatoren mit fester Laufzeit – iOS-safe)
+  function makeSweep(delay) {
+    const dur = 3.5;
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(700, audioCtx.currentTime + delay);
+    osc.frequency.linearRampToValueAtTime(180, audioCtx.currentTime + delay + dur);
+    gain.gain.setValueAtTime(0.07, audioCtx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + delay + dur);
+    osc.connect(gain); gain.connect(masterGain);
+    osc.start(audioCtx.currentTime + delay);
+    osc.stop(audioCtx.currentTime + delay + dur + 0.1);
+    musicNodes.push(osc);
+  }
+
+  // Pulse: iOS-safe – jeweils nur 1 Buffer per setInterval, nicht 120 auf einmal
+  function schedulePulse() {
+    if (!audioCtx || !masterGain || !introSpeaking) return;
+    const buf    = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.15), audioCtx.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.035));
+    }
+    const src    = audioCtx.createBufferSource();
+    const filt   = audioCtx.createBiquadFilter();
+    const gain   = audioCtx.createGain();
+    src.buffer   = buf;
+    filt.type    = 'lowpass'; filt.frequency.value = 160;
+    gain.gain.value = 0.20;
+    src.connect(filt); filt.connect(gain); gain.connect(masterGain);
+    src.start(audioCtx.currentTime);
+    // BufferSources nicht in musicNodes – sie enden von selbst
+  }
+
+  makeDrone(55,  0.28);
+  makeDrone(82,  0.14);
+  makeDrone(110, 0.09);
+  makeChord(220, 2.0, 0.09);
+  makeChord(277, 3.8, 0.07);
+  makeChord(330, 5.5, 0.06);
+  makeSweep(1.0);
+  makeSweep(9.0);
+  makeSweep(18.0);
+  makeSweep(27.0);
+
+  // Pulse per setInterval (1 Buffer/s) – kein Memory-Spike auf iOS
+  pulseTimer = setInterval(schedulePulse, 1000);
+}
+
+// ══════════════════════════════════════════════
+// WAVEFORM
+// ══════════════════════════════════════════════
+
+function setupWaveCanvas() {
+  if (waveAnimId) { cancelAnimationFrame(waveAnimId); waveAnimId = null; }
+  const canvas = document.getElementById('waveCanvas');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); // max 2× auf iPad
+  const W = Math.min(600, window.innerWidth - 32);
+  const H = 120;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  function draw() {
+    waveAnimId = requestAnimationFrame(draw);
+    ctx.clearRect(0, 0, W, H);
+
+    if (analyser) {
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(data);
+      ctx.beginPath();
+      ctx.strokeStyle = '#f5a623';
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = '#f5a623';
+      ctx.shadowBlur  = 8;
+      const sliceW = W / data.length;
+      data.forEach((v, i) => {
+        const x = i * sliceW;
+        const y = (v / 128) * (H / 2);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      // Animierte Platzhalterwelle solange Audio noch nicht läuft
+      const t = Date.now() / 700;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(245,166,35,0.45)';
+      ctx.lineWidth = 2;
+      for (let x = 0; x <= W; x += 3) {
+        const y = H / 2 + Math.sin(x * 0.038 + t) * 22 + Math.sin(x * 0.011 + t * 0.6) * 12;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+  draw();
+}
+</script>
+</body>
+</html>
